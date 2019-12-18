@@ -1020,6 +1020,35 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
       proto_tree_add_item(mqtt_tree, hf_mqtt_client_id, tvb, offset, mqtt_str_len, ENC_UTF_8|ENC_NA);
       offset += mqtt_str_len;
 
+  	  if(mqtt_con_flags & MQTT_CONMASK_RESERVED) {
+        proto_tree_add_item_ret_uint(mqtt_tree, hf_mqtt_msgid, tvb, offset, 2, ENC_BIG_ENDIAN, &mqtt_msgid);
+        offset += 2;
+        col_append_fstr(pinfo->cinfo, COL_INFO, " (id=%u)", mqtt_msgid);
+
+        while (offset < tvb_reported_length(tvb))
+        {
+          proto_tree_add_item_ret_uint(mqtt_tree, hf_mqtt_topic_len, tvb, offset, 2, ENC_BIG_ENDIAN, &mqtt_str_len);
+          offset += 2;
+
+          proto_tree_add_item_ret_string(mqtt_tree, hf_mqtt_topic, tvb, offset, mqtt_str_len, ENC_UTF_8|ENC_NA,
+                                        wmem_epan_scope(), &topic_str);
+          offset += mqtt_str_len;
+
+          col_append_fstr(pinfo->cinfo, COL_INFO, " [%s]", topic_str);
+
+          if (mqtt->runtime_proto_version == MQTT_PROTO_V50)
+          {
+            proto_tree_add_bitmask(mqtt_tree, tvb, offset, hf_mqtt_subscription_options,
+                                  ett_mqtt_subscription_flags, v50_subscription_flags, ENC_BIG_ENDIAN);
+          }
+          else
+          {
+            proto_tree_add_item(mqtt_tree, hf_mqtt_sub_qos, tvb, offset, 1, ENC_BIG_ENDIAN);
+          }
+          offset += 1;
+        }
+      }
+
       if (mqtt_con_flags & MQTT_CONMASK_WILLFLAG)
       {
         if (mqtt->runtime_proto_version == MQTT_PROTO_V50)
