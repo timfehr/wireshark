@@ -1079,16 +1079,29 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
       }
       offset += 1;
 
-      if ((mqtt->runtime_proto_version == MQTT_PROTO_V31) ||
-          (mqtt->runtime_proto_version == MQTT_PROTO_V311))
-      {
-        proto_tree_add_item(mqtt_tree, hf_mqtt_conack_code, tvb, offset, 1, ENC_BIG_ENDIAN);
+      if(mqtt_connack_flags & MQTT_CONACKMASK_SC) {
+          if ((mqtt->runtime_proto_version == MQTT_PROTO_V31) ||
+              (mqtt->runtime_proto_version == MQTT_PROTO_V311))
+          {
+            proto_tree_add_item(mqtt_tree, hf_mqtt_suback_qos, tvb, offset, 1, ENC_BIG_ENDIAN);
+          }
+          else
+          {
+            dissect_mqtt_reason_code(mqtt_tree, tvb, offset, MQTT_SUBACK);
+          }
+          offset += 1;
+      } else {
+        if ((mqtt->runtime_proto_version == MQTT_PROTO_V31) ||
+            (mqtt->runtime_proto_version == MQTT_PROTO_V311))
+        {
+          proto_tree_add_item(mqtt_tree, hf_mqtt_conack_code, tvb, offset, 1, ENC_BIG_ENDIAN);
+        }
+        else
+        {
+          dissect_mqtt_reason_code(mqtt_tree, tvb, offset, mqtt_msg_type);
+        }
+        offset += 1;
       }
-      else
-      {
-        dissect_mqtt_reason_code(mqtt_tree, tvb, offset, mqtt_msg_type);
-      }
-      offset += 1;
 
       if (mqtt->runtime_proto_version == MQTT_PROTO_V50)
       {
