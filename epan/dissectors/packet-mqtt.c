@@ -164,7 +164,8 @@ static const value_string mqtt_conack_vals[] = {
 #define MQTT_CONMASK_CLEANSESS   0x02
 #define MQTT_CONMASK_RESERVED    0x01
 
-#define MQTT_CONACKMASK_RESERVED 0xFE
+#define MQTT_CONACKMASK_RESERVED 0xFC
+#define MQTT_CONACKMASK_SC       0x02
 #define MQTT_CONACKMASK_SP       0x01
 
 /* The protocol version is present in the CONNECT message. */
@@ -503,6 +504,7 @@ static int hf_mqtt_retain_reserved = -1;
 static int hf_mqtt_conack_reserved = -1;
 static int hf_mqtt_conack_flags = -1;
 static int hf_mqtt_conackflag_reserved = -1;
+static int hf_mqtt_conackflag_sc = -1;
 static int hf_mqtt_conackflag_sp = -1;
 static int hf_mqtt_conack_code = -1;
 static int hf_mqtt_msgid = -1;
@@ -877,6 +879,7 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
   const guint8 *topic_str;
   proto_tree *mqtt_tree;
   guint64     mqtt_con_flags;
+  guint64     mqtt_connack_flags;
   guint64     msg_len      = 0;
   gint        mqtt_msg_len = 0;
   guint32     mqtt_str_len;
@@ -922,6 +925,7 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 
   static const int *connack_flags[] = {
     &hf_mqtt_conackflag_reserved,
+    &hf_mqtt_conackflag_sc,
     &hf_mqtt_conackflag_sp,
     NULL
   };
@@ -1070,8 +1074,8 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
       else
       {
         /* v3.1.1 Conn Ack contains the Conn Ack Flags and the Return Code. */
-        proto_tree_add_bitmask(mqtt_tree, tvb, offset, hf_mqtt_conack_flags,
-                               ett_mqtt_conack_flags, connack_flags, ENC_BIG_ENDIAN);
+        proto_tree_add_bitmask_ret_uint64(mqtt_tree, tvb, offset, hf_mqtt_conack_flags,
+                               ett_mqtt_conack_flags, connack_flags, ENC_BIG_ENDIAN, &mqtt_connack_flags);
       }
       offset += 1;
 
@@ -1090,6 +1094,13 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
       {
         offset += dissect_mqtt_properties(tvb, mqtt_tree, offset, hf_mqtt_property);
       }
+
+      if(mqtt_connack_flags & MQTT_CONACKMASK_SC) {
+        proto_tree_add_item_ret_uint(mqtt_tree, hf_mqtt_msgid, tvb, offset, 2, ENC_BIG_ENDIAN, &mqtt_msgid);
+        offset += 2;
+        col_append_fstr(pinfo->cinfo, COL_INFO, " (id=%u)", mqtt_msgid);
+      }
+
       break;
 
     case MQTT_PUBLISH:
@@ -1383,6 +1394,10 @@ void proto_register_mqtt(void)
       { "Reserved", "mqtt.conack.flags.reserved",
         FT_BOOLEAN, 8, TFS(&tfs_set_notset), MQTT_CONACKMASK_RESERVED,
         NULL, HFILL }},
+    { &hf_mqtt_conackflag_sc,
+      { "Short Connect Ack", "mqtt.conack.flags.sc",
+        FT_BOOLEAN, 8, TFS(&tfs_set_notset), MQTT_CONACKMASK_SC,
+        NULL, HFILL }},
     { &hf_mqtt_conackflag_sp,
       { "Session Present", "mqtt.conack.flags.sp",
         FT_BOOLEAN, 8, TFS(&tfs_set_notset), MQTT_CONACKMASK_SP,
@@ -1510,7 +1525,7 @@ void proto_register_mqtt(void)
         FT_BOOLEAN, 8, TFS(&tfs_set_notset), MQTT_CONMASK_CLEANSESS,
         NULL, HFILL }},
     { &hf_mqtt_conflag_reserved,
-      { "(Reserved)", "mqtt.conflag.reserved",
+      { "Short Connect", "mqtt.conflag.reserved",
         FT_BOOLEAN, 8, TFS(&tfs_set_notset), MQTT_CONMASK_RESERVED,
         NULL, HFILL }},
     { &hf_mqtt_keep_alive,
